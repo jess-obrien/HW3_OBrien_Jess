@@ -1,0 +1,82 @@
+---
+title: "STAA 566 Homework 3"
+author: "Jessica O'Brien"
+date: "2/22/2022"
+output: html_document
+knit: (function(input_file, encoding){
+  out_dir <- 'docs'; 
+  rmarkdown::render(input_file,
+  encoding=encoding,
+  output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
+---
+
+**Data Source:** https://ephtracking.cdc.gov/DataExplorer/ (Select Community Design > Access to Parks and Elementary schools > Percent of Population Living Within Half Mile of Park, for Michigan by county)
+
+**Background:** In recent years, physicians and public health officials have started to recognize the importance of time outside to the overall health of a person. Some doctors have even started prescribing time outdoors like they would a medication (Here's a news article about this phenomenon - https://news.trust.org/item/20210831100001-qppwk/ ) 
+
+I was interested to see how many people in Michigan have easy access to a park, and whether the percentage of people with access to parks has changed over recent years. I thought the best way to look at the data might be through a map of Michigan counties, color coded based on the percentage of people living in those counties that live within half a mile of a park. To take it one step further, I also calculated the change in that percentage between 2010 and 2015 for each county, and created a third map that shows which counties have had largest change in the percentage of people living near a park. If I was a park or city planner, I might look to the counties with the highest percentage or largest increase to see what they're doing right.
+
+```{r}
+park<-read.csv('data_202233.csv') #Read data in and format for 2010, 2015, and change between the two
+park_2010 <-subset(park, Year == 2010)
+park_2015 <-subset(park, Year == 2015)
+parkval_2010<-as.numeric(sub("%", "", park_2010$Value))
+parkval_2015<-as.numeric(sub("%", "", park_2015$Value))
+```
+
+```{r}
+library(ggplot2)
+map=map_data("county", "michigan") #Pull in Michigan map
+```
+
+```{r}
+#Mapping each county in the park data set to the corresponding county in the map file
+library(dplyr)
+
+#Create data frames for 2010, 2015, and change between the two
+df.2010<-data.frame(park_2010$County, parkval_2010)
+df.2015<-data.frame(park_2015$County, parkval_2015)
+parkchange<-df.2015$parkval_2015-df.2010$parkval_2010
+park_chg_df<-data.frame(unique(park$County), parkchange)
+
+#Bind the park counties to the map counties
+cbind(df.2010$County, unique(map$subregion))
+df.2010$County=unique(map$subregion)
+
+cbind(df.2015$County, unique(map$subregion))
+df.2015$County=unique(map$subregion)
+
+cbind(park_chg_df$County, unique(map$subregion))
+park_chg_df$County=unique(map$subregion)
+```
+```{r}
+#join into map data sets
+colnames(map)[6]<-'County'
+park_map_2010<-left_join(map, df.2010, by=c('County'))
+park_map_2015<-left_join(map, df.2015, by=c('County'))
+park_map_chg<-left_join(map, park_chg_df, by=c('County'))
+```
+
+```{r}
+#2010 Map
+library(plotly)
+gm1<-ggplot(park_map_2010, aes(x=long, y=lat, group=group, text=paste("County:",County, "<br>% Residents:", parkval_2010)))+geom_polygon(aes(fill=parkval_2010))+coord_map()+scale_fill_viridis_b(option='plasma')+labs(title="% County Residents living within half mile of a park \n 2010")+theme(plot.title=element_text(hjust=0.5))+theme(axis.title.x = element_blank())+theme(axis.title.y = element_blank())+labs(fill="% Residents")
+gm1<-ggplotly(gm1, tooltip = 'text')
+gm1
+```
+```{r}
+#2015 Map
+library(plotly)
+gm2<-ggplot(park_map_2015, aes(x=long, y=lat, group=group, text= paste("County:",County, "<br>% Residents:", parkval_2015)))+geom_polygon(aes(fill=parkval_2015))+coord_map()+scale_fill_viridis_b(option='plasma')+labs(title="% County Residents living within half mile of a park \n 2015")+theme(plot.title=element_text(hjust=0.5))+theme(axis.title.x = element_blank())+theme(axis.title.y = element_blank())+labs(fill="% Residents")
+gm2<-ggplotly(gm2, tooltip='text')
+gm2
+```
+
+
+```{r}
+#Change Map
+library(plotly)
+gm3<-ggplot(park_map_chg, aes(x=long, y=lat, group=group, text= paste("County:", County, "<br> Change in % Residents:", parkchange)))+geom_polygon(aes(fill=parkchange))+coord_map()+scale_fill_viridis_b(option='turbo')+labs(title="Change in \n % County Residents living within half mile of a park \n 2010-2015")+theme(plot.title=element_text(hjust=0.5))+theme(axis.title.x = element_blank())+theme(axis.title.y = element_blank())+labs(fill="Change in % of Residents")
+gm3<-ggplotly(gm3, tooltip = 'text')
+gm3
+```
